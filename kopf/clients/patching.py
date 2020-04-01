@@ -1,12 +1,17 @@
-from typing import Optional, cast
+import copy
+from typing import Optional, cast, Any, Union
 
 import aiohttp
 
 from kopf.clients import auth
 from kopf.clients import discovery
-from kopf.structs import bodies
+from kopf.structs import bodies, diffs
 from kopf.structs import patches
 from kopf.structs import resources
+
+from logging import getLogger
+
+logger = getLogger('kopf.clients.patching')
 
 
 @auth.reauthenticated_request
@@ -52,12 +57,18 @@ async def patch_obj(
 
     try:
         if body_patch:
-            await context.session.patch(
-                url=resource.get_url(server=context.server, namespace=namespace, name=name),
+            url = resource.get_url(server=context.server, namespace=namespace, name=name)
+            resp = await context.session.patch(
+                url=url,
                 headers={'Content-Type': 'application/merge-patch+json'},
                 json=body_patch,
                 raise_for_status=True,
             )
+            new_body = await resp.json()
+            if not _patch_is_merged(body, new_body, patch):
+                logger.debug(f'Patch on {url} was not merged. Potentially due to '
+                             f'schema mismatch or a mutating admission controller.')
+
         if status_patch:
             await context.session.patch(
                 url=resource.get_url(server=context.server, namespace=namespace, name=name,
@@ -66,8 +77,38 @@ async def patch_obj(
                 json={'status': status_patch},
                 raise_for_status=True,
             )
+
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             pass
         else:
             raise
+
+
+def _patch_is_merged(old: Optional[bodies.Body], new: bodies.Body, patch: dict):
+    if old:
+        expected = _merge_patch(copy.deepcopy(old), patch)
+        return new == expected
+    else:
+        return True
+
+
+def _merge_patch(target: Union[dict, int, str, float, None],
+                 patch: Union[dict, int, str, float, None]):
+    """
+    An implementation of https://tools.ietf.org/rfc/rfc7386.txt for merge-patch+json
+    """
+    if isinstance(patch, dict):
+        if not isinstance(target, dict):
+            target = {}
+        for k, v in patch.items():
+            if k in target:
+                if v is None:
+                    del target[k]
+                else:
+                    target[k] = _merge_patch(target[k], v)
+            else:
+                target[k] = v
+        return target
+    else:
+        return patch
