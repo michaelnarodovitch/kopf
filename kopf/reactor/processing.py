@@ -29,7 +29,7 @@ from kopf.reactor import lifecycles
 from kopf.reactor import registries
 from kopf.storage import finalizers
 from kopf.storage import states
-from kopf.structs import bodies
+from kopf.structs import bodies, dicts
 from kopf.structs import configuration
 from kopf.structs import containers
 from kopf.structs import diffs
@@ -206,7 +206,11 @@ async def apply_reaction_outcomes(
 
     if patch:
         logger.debug("Patching with: %r", patch)
-        await patching.patch_obj(resource=resource, patch=patch, body=body)
+        body = await patching.patch_obj(resource=resource, patch=patch, body=body)
+
+        mismatches = _mismatches(patch, body)
+        if mismatches:
+            logger.debug("Patched body does not match with patch: %r", mismatches)
 
     # Sleep strictly after patching, never before -- to keep the status proper.
     # The patching above, if done, interrupts the sleep instantly, so we skip it at all.
@@ -385,3 +389,25 @@ async def process_resource_changing_cause(
 
     # The delay is then consumed by the main handling routine (in different ways).
     return delays
+
+
+def _mismatches(patch: patches.Patch, body: Optional[bodies.Body]) -> list:
+    """
+    Helper function to check if patch was applied and reports mismatches.
+
+    Returns for example [{'path': 'status.field1.field2', 'got': None, 'expected': 'bcd'}, ...]
+    """
+    mismatches = []
+
+    def mismatch(field_path: dicts.FieldPath, got, expected):
+        return {'path': '.'.join(field_path), 'got': got, 'expected': expected}
+
+    for path, patch_value in dicts.flatten(patch):
+        try:
+            new_value = dicts.resolve(body, path)
+            if new_value != patch_value:
+                mismatches.append(mismatch(path, new_value, patch_value))
+        except (TypeError, KeyError):
+            mismatches.append(mismatch(path, None, patch_value))
+
+    return mismatches

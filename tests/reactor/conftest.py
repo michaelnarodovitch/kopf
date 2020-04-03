@@ -37,6 +37,10 @@ def watcher_limited(mocker):
     """ Make event streaming finite, watcher exits after depletion. """
     mocker.patch('kopf.clients.watching.infinite_watch', new=streaming_watch)
 
+@pytest.fixture()
+def patcher_mock(mocker):
+    """ Mock of the patcher client"""
+    return mocker.patch('kopf.clients.patching.patch_obj', )
 
 @pytest.fixture()
 def watcher_in_background(settings, resource, event_loop, worker_spy, stream):

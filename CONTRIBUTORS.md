@@ -9,6 +9,7 @@ For the detailed information on who did what, see [GitHub Contributors](https://
 - [Daniel Middlecote](https://github.com/dlmiddlecote)
 - [Henning Jacobs](https://github.com/hjacobs)
 - [Ismail Kaboubi](https://github.com/smileisak)
+- [Michael Narodovitch](https://github.com/michaelnarodovitch)
 - [Sergey Vasilyev](https://github.com/nolar)
 - [Soroosh Sarabadani](https://github.com/psycho-ir)
 - [Trond Hindenes](https://github.com/trondhindenes)
