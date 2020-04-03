@@ -1,4 +1,5 @@
-from typing import Optional, cast
+from typing import Optional
+from typing import cast
 
 import aiohttp
 
@@ -18,7 +19,7 @@ async def patch_obj(
         name: Optional[str] = None,
         body: Optional[bodies.Body] = None,
         context: Optional[auth.APIContext] = None,  # injected by the decorator
-) -> None:
+) -> Optional[bodies.RawBody]:
     """
     Patch a resource of specific kind.
 
@@ -28,6 +29,11 @@ async def patch_obj(
     Unlike the object listing, the namespaced call is always
     used for the namespaced resources, even if the operator serves
     the whole cluster (i.e. is not namespace-restricted).
+
+    Returns the patched body. The patched body contains only the full body
+    in case of a `body_patch`. In case of a `status_patch`, the patched body
+    might contain only the `status` field. If none of the cases apply, the
+    patched body is None.
     """
     if context is None:
         raise RuntimeError("API instance is not injected by the decorator.")
@@ -50,16 +56,17 @@ async def patch_obj(
     body_patch = dict(patch)  # shallow: for mutation of the top-level keys below.
     status_patch = body_patch.pop('status', None) if as_subresource else None
 
+    response_to_body_patch, response_to_status_patch = None, None
     try:
         if body_patch:
-            await context.session.patch(
+            response_to_body_patch = await context.session.patch(
                 url=resource.get_url(server=context.server, namespace=namespace, name=name),
                 headers={'Content-Type': 'application/merge-patch+json'},
                 json=body_patch,
                 raise_for_status=True,
             )
         if status_patch:
-            await context.session.patch(
+            response_to_status_patch = await context.session.patch(
                 url=resource.get_url(server=context.server, namespace=namespace, name=name,
                                      subresource='status' if as_subresource else None),
                 headers={'Content-Type': 'application/merge-patch+json'},
@@ -71,3 +78,14 @@ async def patch_obj(
             pass
         else:
             raise
+
+    if (not response_to_status_patch) and (not response_to_body_patch):
+        return None
+    else:
+        result_body = bodies.RawBody()
+        if response_to_body_patch:
+            result_body = await response_to_body_patch.json()
+        if response_to_status_patch:
+            status = await response_to_status_patch.json()
+            result_body['status'] = status
+        return result_body

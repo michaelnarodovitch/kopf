@@ -194,6 +194,33 @@ def walk(
         yield objs  # NB: not a mapping, no nested sub-fields.
 
 
+def flatten(
+        obj: Optional[Mapping],
+) -> Iterator[Tuple[FieldPath, Union[str, int, float, List]]]:
+    """
+    Iterate over all literal and Array type fields of a JSON object.
+
+    For the output, it yields the path and the value in a flat iterable suitable for::
+
+        for path, value in walk(objs):
+            pass
+    """
+
+    if not obj:
+        return
+    
+    def _flatten(obj, root=[]):
+        if isinstance(obj, collections.abc.Mapping):
+            for key, value in obj.items():
+                leaf = root.copy()
+                leaf.append(key)
+                yield from _flatten(value, root=leaf)
+        else:
+            yield root, obj
+
+    yield from _flatten(obj)
+
+
 class MappingView(Generic[_K, _V], Mapping[_K, _V]):
     """
     A lazy resolver for the "on-demand" dict keys.
