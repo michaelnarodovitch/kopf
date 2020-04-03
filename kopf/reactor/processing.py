@@ -29,7 +29,8 @@ from kopf.reactor import lifecycles
 from kopf.reactor import registries
 from kopf.storage import finalizers
 from kopf.storage import states
-from kopf.structs import bodies, dicts
+from kopf.structs import bodies
+from kopf.structs import dicts
 from kopf.structs import configuration
 from kopf.structs import containers
 from kopf.structs import diffs
@@ -129,11 +130,13 @@ async def process_resource_event(
     deletion_is_ongoing = finalizers.is_deletion_ongoing(body=body)
     deletion_is_blocked = finalizers.is_deletion_blocked(body=body)
     deletion_must_be_blocked = (
-        (resource_spawning_cause is not None and
-         registry.resource_spawning_handlers[resource].requires_finalizer(resource_spawning_cause))
-        or
-        (resource_changing_cause is not None and
-         registry.resource_changing_handlers[resource].requires_finalizer(resource_changing_cause)))
+            (resource_spawning_cause is not None and
+             registry.resource_spawning_handlers[resource].requires_finalizer(
+                 resource_spawning_cause))
+            or
+            (resource_changing_cause is not None and
+             registry.resource_changing_handlers[resource].requires_finalizer(
+                 resource_changing_cause)))
 
     if deletion_must_be_blocked and not deletion_is_blocked and not deletion_is_ongoing:
         logger.debug("Adding the finalizer, thus preventing the actual deletion.")
