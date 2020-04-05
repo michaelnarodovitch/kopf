@@ -16,7 +16,8 @@ and therefore do not trigger the user-defined handlers.
 import asyncio
 import datetime
 import time
-from typing import Collection, Optional
+
+from typing import Collection, Optional, Dict, Any, List
 
 from kopf.clients import patching
 from kopf.engines import logging as logging_engine
@@ -131,12 +132,10 @@ async def process_resource_event(
     deletion_is_blocked = finalizers.is_deletion_blocked(body=body)
     deletion_must_be_blocked = (
             (resource_spawning_cause is not None and
-             registry.resource_spawning_handlers[resource].requires_finalizer(
-                 resource_spawning_cause))
+             registry.resource_spawning_handlers[resource].requires_finalizer(resource_spawning_cause))
             or
             (resource_changing_cause is not None and
-             registry.resource_changing_handlers[resource].requires_finalizer(
-                 resource_changing_cause)))
+             registry.resource_changing_handlers[resource].requires_finalizer(resource_changing_cause)))
 
     if deletion_must_be_blocked and not deletion_is_blocked and not deletion_is_ongoing:
         logger.debug("Adding the finalizer, thus preventing the actual deletion.")
@@ -209,9 +208,9 @@ async def apply_reaction_outcomes(
 
     if patch:
         logger.debug("Patching with: %r", patch)
-        body = await patching.patch_obj(resource=resource, patch=patch, body=body)
+        returned_body = await patching.patch_obj(resource=resource, patch=patch, body=body)
 
-        mismatches = _mismatches(patch, body)
+        mismatches = _mismatches(patch, returned_body)
         if mismatches:
             logger.debug("Patched body does not match with patch: %r", mismatches)
 
@@ -394,7 +393,7 @@ async def process_resource_changing_cause(
     return delays
 
 
-def _mismatches(patch: patches.Patch, body: Optional[bodies.Body]) -> list:
+def _mismatches(patch: patches.Patch, body: Optional[bodies.RawBody]) -> List[Any]:
     """
     Helper function to check if patch was applied and reports mismatches.
 
@@ -402,7 +401,9 @@ def _mismatches(patch: patches.Patch, body: Optional[bodies.Body]) -> list:
     """
     mismatches = []
 
-    def mismatch(field_path: dicts.FieldPath, got, expected):
+    def mismatch(field_path: dicts.FieldPath,
+                 got: Any,
+                 expected: Any) -> Dict[Any, Any]:
         return {'path': '.'.join(field_path), 'got': got, 'expected': expected}
 
     for path, patch_value in dicts.flatten(patch):

@@ -195,8 +195,8 @@ def walk(
 
 
 def flatten(
-        obj: Optional[Mapping],
-) -> Iterator[Tuple[FieldPath, Union[str, int, float, List]]]:
+        obj: Optional[Mapping[str, Any]],
+) -> Iterator[Any]:
     """
     Iterate over all literal and Array type fields of a JSON object.
 
@@ -208,15 +208,17 @@ def flatten(
 
     if not obj:
         return
-    
-    def _flatten(obj, root=[]):
-        if isinstance(obj, collections.abc.Mapping):
-            for key, value in obj.items():
+
+    def _flatten(
+            obj_: Any, root: List[str] = []
+    ) -> Union[Iterator[Tuple[FieldPath, Any]], Tuple[FieldPath, Any]]:
+        if isinstance(obj_, collections.abc.Mapping):
+            for key, value in obj_.items():
                 leaf = root.copy()
                 leaf.append(key)
                 yield from _flatten(value, root=leaf)
         else:
-            yield root, obj
+            yield root, obj_
 
     yield from _flatten(obj)
 
