@@ -202,7 +202,7 @@ def flatten(
 
     For the output, it yields the path and the value in a flat iterable suitable for::
 
-        for path, value in walk(objs):
+        for path, value in flatten(objs):
             pass
     """
 
